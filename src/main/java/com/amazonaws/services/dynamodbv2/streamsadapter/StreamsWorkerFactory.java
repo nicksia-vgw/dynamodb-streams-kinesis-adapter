@@ -18,16 +18,7 @@ import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
 import com.amazonaws.services.dynamodbv2.streamsadapter.leases.StreamsLeaseTaker;
-import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.IRecordProcessorFactory;
 
-import com.amazonaws.services.kinesis.clientlibrary.lib.worker.KinesisClientLibConfiguration;
-import com.amazonaws.services.kinesis.clientlibrary.lib.worker.LeaderDecider;
-import com.amazonaws.services.kinesis.clientlibrary.lib.worker.ShardSyncStrategyType;
-import com.amazonaws.services.kinesis.clientlibrary.lib.worker.ShardSyncTask;
-import com.amazonaws.services.kinesis.clientlibrary.lib.worker.ShardSyncer;
-import com.amazonaws.services.kinesis.clientlibrary.lib.worker.Worker;
-import com.amazonaws.services.kinesis.leases.impl.KinesisClientLeaseManager;
-import com.amazonaws.services.kinesis.metrics.interfaces.IMetricsFactory;
 import com.amazonaws.util.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;

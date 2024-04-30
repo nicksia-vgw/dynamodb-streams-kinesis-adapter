@@ -1,37 +1,39 @@
 package com.amazonaws.services.dynamodbv2.streamsadapter;
 
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 
-import com.amazonaws.services.kinesis.clientlibrary.lib.worker.DataFetcherResult;
-import com.amazonaws.services.kinesis.clientlibrary.lib.worker.IDataFetcher;
-import com.amazonaws.services.kinesis.clientlibrary.lib.worker.InitialPositionInStreamExtended;
-import com.amazonaws.services.kinesis.clientlibrary.lib.worker.KinesisDataFetcher;
-import com.amazonaws.services.kinesis.clientlibrary.lib.worker.ShardInfo;
 import com.amazonaws.services.kinesis.model.ChildShard;
+import lombok.NonNull;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.amazonaws.services.kinesis.clientlibrary.lib.checkpoint.SentinelCheckpoint;
-import com.amazonaws.services.kinesis.clientlibrary.proxies.IKinesisProxy;
-import com.amazonaws.services.kinesis.clientlibrary.proxies.MetricsCollectingKinesisProxyDecorator;
-import com.amazonaws.services.kinesis.clientlibrary.types.ExtendedSequenceNumber;
-import com.amazonaws.services.kinesis.model.GetRecordsResult;
 import com.amazonaws.services.kinesis.model.ResourceNotFoundException;
 import com.amazonaws.services.kinesis.model.ShardIteratorType;
 import com.amazonaws.util.CollectionUtils;
 import com.google.common.collect.Iterables;
 
 import lombok.Data;
+import software.amazon.awssdk.services.kinesis.model.GetRecordsRequest;
+import software.amazon.awssdk.services.kinesis.model.GetRecordsResponse;
+import software.amazon.awssdk.services.kinesis.model.GetShardIteratorRequest;
+import software.amazon.kinesis.checkpoint.SentinelCheckpoint;
+import software.amazon.kinesis.common.InitialPositionInStreamExtended;
+import software.amazon.kinesis.common.StreamIdentifier;
+import software.amazon.kinesis.leases.ShardInfo;
+import software.amazon.kinesis.retrieval.DataFetcherResult;
+import software.amazon.kinesis.retrieval.kpl.ExtendedSequenceNumber;
+import software.amazon.kinesis.retrieval.polling.DataFetcher;
+import software.amazon.kinesis.retrieval.polling.KinesisDataFetcher;
 
-public class DynamoDBStreamsDataFetcher implements IDataFetcher {
+public class DynamoDBStreamsDataFetcher implements DataFetcher {
 
-    private static final Log LOG = LogFactory.getLog(KinesisDataFetcher.class);
+    private static final Log LOG = LogFactory.getLog(DynamoDBStreamsDataFetcher.class);
 
     private String nextIterator;
-    private IKinesisProxy kinesisProxy;
     private final String shardId;
     private boolean isShardEndReached;
     private boolean isInitialized;
@@ -40,21 +42,18 @@ public class DynamoDBStreamsDataFetcher implements IDataFetcher {
 
     /**
      *
-     * @param kinesisProxy Kinesis proxy
      * @param shardInfo The shardInfo object.
      */
-    public DynamoDBStreamsDataFetcher(IKinesisProxy kinesisProxy, ShardInfo shardInfo) {
-        this.shardId = shardInfo.getShardId();
-        this.kinesisProxy = new MetricsCollectingKinesisProxyDecorator("KinesisDataFetcher", kinesisProxy, this.shardId);
+    public DynamoDBStreamsDataFetcher(ShardInfo shardInfo) {
+        this.shardId = shardInfo.shardId();
     }
 
     /**
      * Get records from the current position in the stream (up to maxRecords).
      *
-     * @param maxRecords Max records to fetch
      * @return list of records of up to maxRecords size
      */
-    public DataFetcherResult getRecords(int maxRecords) {
+    public DataFetcherResult getRecords() {
         if (!isInitialized) {
             throw new IllegalArgumentException("KinesisDataFetcher.getRecords called before initialization.");
         }
@@ -74,15 +73,16 @@ public class DynamoDBStreamsDataFetcher implements IDataFetcher {
 
     final DataFetcherResult TERMINAL_RESULT = new DataFetcherResult() {
         @Override
-        public GetRecordsResult getResult() {
-            return new GetRecordsResult()
-                    .withMillisBehindLatest(null)
-                    .withRecords(Collections.emptyList())
-                    .withNextShardIterator(null);
+        public GetRecordsResponse getResult() {
+            return GetRecordsResponse.builder()
+                    .millisBehindLatest(null)
+                    .records(Collections.emptyList())
+                    .nextShardIterator(null)
+                    .build();
         }
 
         @Override
-        public GetRecordsResult accept() {
+        public GetRecordsResponse accept() {
             isShardEndReached = true;
             return getResult();
         }
@@ -96,18 +96,18 @@ public class DynamoDBStreamsDataFetcher implements IDataFetcher {
     @Data
     class AdvancingResult implements DataFetcherResult {
 
-        final GetRecordsResult result;
+        final GetRecordsResponse result;
 
         @Override
-        public GetRecordsResult getResult() {
+        public GetRecordsResponse getResult() {
             return result;
         }
 
         @Override
-        public GetRecordsResult accept() {
-            nextIterator = result.getNextShardIterator();
-            if (!CollectionUtils.isNullOrEmpty(result.getRecords())) {
-                lastKnownSequenceNumber = Iterables.getLast(result.getRecords()).getSequenceNumber();
+        public GetRecordsResponse accept() {
+            nextIterator = result.nextShardIterator();
+            if (!CollectionUtils.isNullOrEmpty(result.records())) {
+                lastKnownSequenceNumber = Iterables.getLast(result.records()).sequenceNumber();
             }
             if (nextIterator == null) {
                 LOG.info("Reached shard end: nextIterator is null in AdvancingResult.accept for shard " + shardId);
@@ -135,8 +135,8 @@ public class DynamoDBStreamsDataFetcher implements IDataFetcher {
     }
 
     public void initialize(ExtendedSequenceNumber initialCheckpoint, InitialPositionInStreamExtended initialPositionInStream) {
-        LOG.info("Initializing shard " + shardId + " with " + initialCheckpoint.getSequenceNumber());
-        advanceIteratorTo(initialCheckpoint.getSequenceNumber(), initialPositionInStream);
+        LOG.info("Initializing shard " + shardId + " with " + initialCheckpoint.sequenceNumber());
+        advanceIteratorTo(initialCheckpoint.sequenceNumber(), initialPositionInStream);
         isInitialized = true;
     }
 
@@ -154,7 +154,7 @@ public class DynamoDBStreamsDataFetcher implements IDataFetcher {
         } else if (sequenceNumber.equals(SentinelCheckpoint.TRIM_HORIZON.toString())) {
             nextIterator = getIterator(ShardIteratorType.TRIM_HORIZON.toString());
         } else if (sequenceNumber.equals(SentinelCheckpoint.AT_TIMESTAMP.toString())) {
-            nextIterator = getIterator(initialPositionInStream.getTimestamp());
+            nextIterator = getIterator(initialPositionInStream.getTimestamp().toString());
         } else if (sequenceNumber.equals(SentinelCheckpoint.SHARD_END.toString())) {
             nextIterator = null;
         } else {
@@ -182,7 +182,7 @@ public class DynamoDBStreamsDataFetcher implements IDataFetcher {
                 LOG.debug("Calling getIterator for " + shardId + ", iterator type " + iteratorType
                         + " and sequence number " + sequenceNumber);
             }
-            iterator = kinesisProxy.getIterator(shardId, iteratorType, sequenceNumber);
+            iterator = getIterator(shardId, iteratorType, sequenceNumber);
         } catch (ResourceNotFoundException e) {
             LOG.info("Caught ResourceNotFoundException when getting an iterator for shard " + shardId, e);
         }
@@ -199,24 +199,7 @@ public class DynamoDBStreamsDataFetcher implements IDataFetcher {
             if (LOG.isDebugEnabled()) {
                 LOG.debug("Calling getIterator for " + shardId + " and iterator type " + iteratorType);
             }
-            iterator = kinesisProxy.getIterator(shardId, iteratorType);
-        } catch (ResourceNotFoundException e) {
-            LOG.info("Caught ResourceNotFoundException when getting an iterator for shard " + shardId, e);
-        }
-        return iterator;
-    }
-
-    /**
-     * @param timestamp The timestamp.
-     * @return iterator or null if we catch a ResourceNotFound exception
-     */
-    private String getIterator(Date timestamp) {
-        String iterator = null;
-        try {
-            if (LOG.isDebugEnabled()) {
-                LOG.debug("Calling getIterator for " + shardId + " and timestamp " + timestamp);
-            }
-            iterator = kinesisProxy.getIterator(shardId, timestamp);
+            iterator = getIterator(shardId, iteratorType);
         } catch (ResourceNotFoundException e) {
             LOG.info("Caught ResourceNotFoundException when getting an iterator for shard " + shardId, e);
         }
@@ -232,6 +215,36 @@ public class DynamoDBStreamsDataFetcher implements IDataFetcher {
             throw new IllegalStateException("Make sure to initialize the KinesisDataFetcher before restarting the iterator.");
         }
         advanceIteratorTo(lastKnownSequenceNumber, initialPositionInStream);
+    }
+
+    @Override
+    public void resetIterator(String shardIterator, String sequenceNumber, InitialPositionInStreamExtended initialPositionInStream) {
+        nextIterator = getIterator(shardIterator, sequenceNumber);
+    }
+
+    @Override
+    public GetRecordsResponse getGetRecordsResponse(GetRecordsRequest request) throws Exception {
+        return null;
+    }
+
+    @Override
+    public GetRecordsRequest getGetRecordsRequest(String nextIterator) {
+        return null;
+    }
+
+    @Override
+    public String getNextIterator(GetShardIteratorRequest request) throws ExecutionException, InterruptedException, TimeoutException {
+        return "";
+    }
+
+    @Override
+    public GetRecordsResponse getRecords(@NonNull String nextIterator) {
+        return null;
+    }
+
+    @Override
+    public StreamIdentifier getStreamIdentifier() {
+        return null;
     }
 
     /**

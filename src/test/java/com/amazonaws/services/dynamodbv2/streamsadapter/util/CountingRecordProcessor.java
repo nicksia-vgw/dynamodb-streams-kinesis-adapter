@@ -53,7 +53,7 @@ public class CountingRecordProcessor implements IRecordProcessor {
 
     @Override
     public void shutdown(ShutdownInput shutdownInput) {
-        if (shutdownInput.getShutdownReason() == ShutdownReason.TERMINATE) {
+        if (shutdownInput.getShutdownReason() == ShutdownReason.SHARD_END) {
             try {
                 shutdownInput.getCheckpointer().checkpoint();
             } catch (Exception e) {

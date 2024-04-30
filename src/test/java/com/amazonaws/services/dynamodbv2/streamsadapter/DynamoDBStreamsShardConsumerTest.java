@@ -10,7 +10,7 @@ import com.amazonaws.services.kinesis.clientlibrary.lib.worker.AsynchronousGetRe
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.BlockingGetRecordsCache;
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.GetRecordsCache;
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.GetRecordsRetrievalStrategy;
-import com.amazonaws.services.kinesis.clientlibrary.lib.worker.ITask;
+import com.amazonaws.services.kinesis.clientlibrary.lib.worker.ConsumerTask;
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.InitialPositionInStream;
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.InitialPositionInStreamExtended;
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.InitializeTask;
@@ -403,13 +403,13 @@ public class DynamoDBStreamsShardConsumerTest {
 
         consumer.beginShutdown();
         Thread.sleep(50L);
-        assertThat(consumer.getShutdownReason(), equalTo(ShutdownReason.ZOMBIE));
+        assertThat(consumer.getShutdownReason(), equalTo(ShutdownReason.LEASE_LOST));
         assertThat(consumer.getCurrentState(), is(equalTo(KinesisConsumerStates.ShardConsumerState.SHUTTING_DOWN)));
         consumer.beginShutdown();
         consumer.consumeShard();
         verify(shutdownNotification, atLeastOnce()).shutdownComplete();
         assertThat(consumer.getCurrentState(), is(equalTo(KinesisConsumerStates.ShardConsumerState.SHUTDOWN_COMPLETE)));
-        assertThat(consumer.getShutdownReason(), is(equalTo(ShutdownReason.ZOMBIE)));
+        assertThat(consumer.getShutdownReason(), is(equalTo(ShutdownReason.LEASE_LOST)));
 
         verify(getRecordsCache).shutdown();
 
@@ -484,7 +484,7 @@ public class DynamoDBStreamsShardConsumerTest {
         assertThat(consumer.isShutdown(), is(true));
         verify(shutdownNotification, times(1)).shutdownComplete();
         consumer.beginShutdown();
-        assertThat(consumer.getShutdownReason(), equalTo(ShutdownReason.ZOMBIE));
+        assertThat(consumer.getShutdownReason(), equalTo(ShutdownReason.LEASE_LOST));
         assertThat(consumer.isShutdown(), is(true));
     }
 
@@ -597,7 +597,7 @@ public class DynamoDBStreamsShardConsumerTest {
         ExecutorService mockExecutorService = mock(ExecutorService.class);
         Future<TaskResult> mockFuture = mock(Future.class);
 
-        when(mockExecutorService.submit(any(ITask.class))).thenReturn(mockFuture);
+        when(mockExecutorService.submit(any(ConsumerTask.class))).thenReturn(mockFuture);
         when(mockFuture.isDone()).thenReturn(false);
         when(mockFuture.isCancelled()).thenReturn(false);
         when(config.getLogWarningForTaskAfterMillis()).thenReturn(Optional.of(sleepTime));

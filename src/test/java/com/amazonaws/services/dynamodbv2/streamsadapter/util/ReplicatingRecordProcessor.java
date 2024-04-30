@@ -5,7 +5,7 @@
  */
 package com.amazonaws.services.dynamodbv2.streamsadapter.util;
 
-import static com.amazonaws.services.kinesis.clientlibrary.lib.worker.ShutdownReason.TERMINATE;
+import static com.amazonaws.services.kinesis.clientlibrary.lib.worker.ShutdownReason.SHARD_END;
 
 import java.nio.charset.Charset;
 
@@ -73,7 +73,7 @@ public class ReplicatingRecordProcessor implements IRecordProcessor {
 
     @Override
     public void shutdown(ShutdownInput shutdownInput) {
-        if (TERMINATE.equals(shutdownInput.getShutdownReason())) {
+        if (SHARD_END.equals(shutdownInput.getShutdownReason())) {
             try {
                 shutdownInput.getCheckpointer().checkpoint();
             } catch (Exception e) {

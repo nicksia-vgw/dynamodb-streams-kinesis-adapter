@@ -72,6 +72,7 @@ import com.amazonaws.services.kinesis.model.RemoveTagsFromStreamResult;
 import com.amazonaws.services.kinesis.model.ShardIteratorType;
 import com.amazonaws.services.kinesis.model.SplitShardRequest;
 import com.amazonaws.services.kinesis.model.SplitShardResult;
+import software.amazon.kinesis.metrics.MetricsScope;
 
 /**
  * Client for accessing DynamoDB Streams using the Amazon Kinesis interface.
@@ -453,7 +454,7 @@ public class AmazonDynamoDBStreamsAdapterClient extends AbstractAmazonKinesis {
                 final StreamRecord lastStreamRecord = result.getRecords().get(lastIndex).getDynamodb();
                 final double lastApproximateCreationTimestamp = lastStreamRecord.getApproximateCreationDateTime().getTime();
                 final double millisBehindLatest = Math.max(System.currentTimeMillis() - lastApproximateCreationTimestamp, 0);
-                IMetricsScope scope = MetricsHelper.getMetricsScope();
+                MetricsScope scope = MetricsHelper.getMetricsScope();
                 scope.addData(MILLIS_BEHIND_LATEST_METRIC, millisBehindLatest, StandardUnit.Milliseconds, MetricsLevel.SUMMARY);
             }
 

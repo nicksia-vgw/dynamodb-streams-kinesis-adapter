@@ -5,7 +5,7 @@ import com.amazonaws.services.kinesis.clientlibrary.interfaces.IRecordProcessorC
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.IRecordProcessor;
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.BlockOnParentShardTask;
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.GetRecordsCache;
-import com.amazonaws.services.kinesis.clientlibrary.lib.worker.ITask;
+import com.amazonaws.services.kinesis.clientlibrary.lib.worker.ConsumerTask;
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.InitialPositionInStreamExtended;
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.InitializeTask;
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.KinesisClientLibConfiguration;
@@ -86,7 +86,7 @@ public class DynamoDBStreamsConsumerStatesTest {
     private long parentShardPollIntervalMillis = 0xCAFE;
     private boolean cleanupLeasesOfCompletedShards = true;
     private long taskBackoffTimeMillis = 0xBEEF;
-    private ShutdownReason reason = ShutdownReason.TERMINATE;
+    private ShutdownReason reason = ShutdownReason.SHARD_END;
 
     @Before
     public void setup() {
@@ -114,7 +114,7 @@ public class DynamoDBStreamsConsumerStatesTest {
     public void blockOnParentStateTest() {
         ConsumerState state = ShardConsumerState.WAITING_ON_PARENT_SHARDS.getConsumerState();
 
-        ITask task = state.createTask(consumer);
+        ConsumerTask task = state.createTask(consumer);
 
         assertThat(task, taskWith(BlockOnParentShardTask.class, ShardInfo.class, "shardInfo", equalTo(shardInfo)));
         assertThat(task,
@@ -136,7 +136,7 @@ public class DynamoDBStreamsConsumerStatesTest {
     @Test
     public void initializingStateTest() {
         ConsumerState state = ShardConsumerState.INITIALIZING.getConsumerState();
-        ITask task = state.createTask(consumer);
+        ConsumerTask task = state.createTask(consumer);
 
         assertThat(task, initTask(ShardInfo.class, "shardInfo", equalTo(shardInfo)));
         assertThat(task, initTask(IRecordProcessor.class, "recordProcessor", equalTo(recordProcessor)));
@@ -149,9 +149,9 @@ public class DynamoDBStreamsConsumerStatesTest {
 
         assertThat(state.successTransition(), equalTo(ShardConsumerState.PROCESSING.getConsumerState()));
 
-        assertThat(state.shutdownTransition(ShutdownReason.ZOMBIE),
+        assertThat(state.shutdownTransition(ShutdownReason.LEASE_LOST),
                 equalTo(ShardConsumerState.SHUTTING_DOWN.getConsumerState()));
-        assertThat(state.shutdownTransition(ShutdownReason.TERMINATE),
+        assertThat(state.shutdownTransition(ShutdownReason.SHARD_END),
                 equalTo(ShardConsumerState.SHUTTING_DOWN.getConsumerState()));
         assertThat(state.shutdownTransition(ShutdownReason.REQUESTED),
                 equalTo(ShardConsumerState.SHUTDOWN_REQUESTED.getConsumerState()));
@@ -163,7 +163,7 @@ public class DynamoDBStreamsConsumerStatesTest {
     @Test
     public void processingStateTestSynchronous() {
         ConsumerState state = ShardConsumerState.PROCESSING.getConsumerState();
-        ITask task = state.createTask(consumer);
+        ConsumerTask task = state.createTask(consumer);
 
         assertThat(task, procTask(ShardInfo.class, "shardInfo", equalTo(shardInfo)));
         assertThat(task, procTask(IRecordProcessor.class, "recordProcessor", equalTo(recordProcessor)));
@@ -175,9 +175,9 @@ public class DynamoDBStreamsConsumerStatesTest {
 
         assertThat(state.successTransition(), equalTo(ShardConsumerState.PROCESSING.getConsumerState()));
 
-        assertThat(state.shutdownTransition(ShutdownReason.ZOMBIE),
+        assertThat(state.shutdownTransition(ShutdownReason.LEASE_LOST),
                 equalTo(ShardConsumerState.SHUTTING_DOWN.getConsumerState()));
-        assertThat(state.shutdownTransition(ShutdownReason.TERMINATE),
+        assertThat(state.shutdownTransition(ShutdownReason.SHARD_END),
                 equalTo(ShardConsumerState.SHUTTING_DOWN.getConsumerState()));
         assertThat(state.shutdownTransition(ShutdownReason.REQUESTED),
                 equalTo(ShardConsumerState.SHUTDOWN_REQUESTED.getConsumerState()));
@@ -190,7 +190,7 @@ public class DynamoDBStreamsConsumerStatesTest {
     @Test
     public void processingStateTestAsynchronous() {
         ConsumerState state = ShardConsumerState.PROCESSING.getConsumerState();
-        ITask task = state.createTask(consumer);
+        ConsumerTask task = state.createTask(consumer);
 
         assertThat(task, procTask(ShardInfo.class, "shardInfo", equalTo(shardInfo)));
         assertThat(task, procTask(IRecordProcessor.class, "recordProcessor", equalTo(recordProcessor)));
@@ -202,9 +202,9 @@ public class DynamoDBStreamsConsumerStatesTest {
 
         assertThat(state.successTransition(), equalTo(ShardConsumerState.PROCESSING.getConsumerState()));
 
-        assertThat(state.shutdownTransition(ShutdownReason.ZOMBIE),
+        assertThat(state.shutdownTransition(ShutdownReason.LEASE_LOST),
                 equalTo(ShardConsumerState.SHUTTING_DOWN.getConsumerState()));
-        assertThat(state.shutdownTransition(ShutdownReason.TERMINATE),
+        assertThat(state.shutdownTransition(ShutdownReason.SHARD_END),
                 equalTo(ShardConsumerState.SHUTTING_DOWN.getConsumerState()));
         assertThat(state.shutdownTransition(ShutdownReason.REQUESTED),
                 equalTo(ShardConsumerState.SHUTDOWN_REQUESTED.getConsumerState()));
@@ -218,7 +218,7 @@ public class DynamoDBStreamsConsumerStatesTest {
     public void processingStateRecordsFetcher() {
 
         ConsumerState state = ShardConsumerState.PROCESSING.getConsumerState();
-        ITask task = state.createTask(consumer);
+        ConsumerTask task = state.createTask(consumer);
 
         assertThat(task, procTask(ShardInfo.class, "shardInfo", equalTo(shardInfo)));
         assertThat(task, procTask(IRecordProcessor.class, "recordProcessor", equalTo(recordProcessor)));
@@ -230,9 +230,9 @@ public class DynamoDBStreamsConsumerStatesTest {
 
         assertThat(state.successTransition(), equalTo(ShardConsumerState.PROCESSING.getConsumerState()));
 
-        assertThat(state.shutdownTransition(ShutdownReason.ZOMBIE),
+        assertThat(state.shutdownTransition(ShutdownReason.LEASE_LOST),
                 equalTo(ShardConsumerState.SHUTTING_DOWN.getConsumerState()));
-        assertThat(state.shutdownTransition(ShutdownReason.TERMINATE),
+        assertThat(state.shutdownTransition(ShutdownReason.SHARD_END),
                 equalTo(ShardConsumerState.SHUTTING_DOWN.getConsumerState()));
         assertThat(state.shutdownTransition(ShutdownReason.REQUESTED),
                 equalTo(ShardConsumerState.SHUTDOWN_REQUESTED.getConsumerState()));
@@ -245,7 +245,7 @@ public class DynamoDBStreamsConsumerStatesTest {
     public void shutdownRequestState() {
         ConsumerState state = ShardConsumerState.SHUTDOWN_REQUESTED.getConsumerState();
 
-        ITask task = state.createTask(consumer);
+        ConsumerTask task = state.createTask(consumer);
 
         assertThat(task, shutdownReqTask(IRecordProcessor.class, "recordProcessor", equalTo(recordProcessor)));
         assertThat(task, shutdownReqTask(IRecordProcessorCheckpointer.class, "recordProcessorCheckpointer",
@@ -255,9 +255,9 @@ public class DynamoDBStreamsConsumerStatesTest {
         assertThat(state.successTransition(), equalTo(DynamoDBStreamsConsumerStates.SHUTDOWN_REQUEST_COMPLETION_STATE));
         assertThat(state.shutdownTransition(ShutdownReason.REQUESTED),
                 equalTo(DynamoDBStreamsConsumerStates.SHUTDOWN_REQUEST_COMPLETION_STATE));
-        assertThat(state.shutdownTransition(ShutdownReason.ZOMBIE),
+        assertThat(state.shutdownTransition(ShutdownReason.LEASE_LOST),
                 equalTo(ShardConsumerState.SHUTTING_DOWN.getConsumerState()));
-        assertThat(state.shutdownTransition(ShutdownReason.TERMINATE),
+        assertThat(state.shutdownTransition(ShutdownReason.SHARD_END),
                 equalTo(ShardConsumerState.SHUTTING_DOWN.getConsumerState()));
 
         assertThat(state.getState(), equalTo(ShardConsumerState.SHUTDOWN_REQUESTED));
@@ -274,9 +274,9 @@ public class DynamoDBStreamsConsumerStatesTest {
         assertThat(state.successTransition(), equalTo(state));
 
         assertThat(state.shutdownTransition(ShutdownReason.REQUESTED), equalTo(state));
-        assertThat(state.shutdownTransition(ShutdownReason.ZOMBIE),
+        assertThat(state.shutdownTransition(ShutdownReason.LEASE_LOST),
                 equalTo(ShardConsumerState.SHUTTING_DOWN.getConsumerState()));
-        assertThat(state.shutdownTransition(ShutdownReason.TERMINATE),
+        assertThat(state.shutdownTransition(ShutdownReason.SHARD_END),
                 equalTo(ShardConsumerState.SHUTTING_DOWN.getConsumerState()));
 
         assertThat(state.getState(), equalTo(ShardConsumerState.SHUTDOWN_REQUESTED));
@@ -291,7 +291,7 @@ public class DynamoDBStreamsConsumerStatesTest {
         when(streamConfig.getStreamProxy()).thenReturn(kinesisProxy);
         when(streamConfig.getInitialPositionInStream()).thenReturn(initialPositionInStream);
 
-        ITask task = state.createTask(consumer);
+        ConsumerTask task = state.createTask(consumer);
 
         assertThat(task, shutdownTask(ShardInfo.class, "shardInfo", equalTo(shardInfo)));
         assertThat(task, shutdownTask(IRecordProcessor.class, "recordProcessor", equalTo(recordProcessor)));
@@ -371,7 +371,7 @@ public class DynamoDBStreamsConsumerStatesTest {
         return new ReflectionPropertyMatcher<>(taskTypeClass, valueTypeClass, matcher, propertyName);
     }
 
-    private static class ReflectionPropertyMatcher<TaskType, ValueType> extends TypeSafeDiagnosingMatcher<ITask> {
+    private static class ReflectionPropertyMatcher<TaskType, ValueType> extends TypeSafeDiagnosingMatcher<ConsumerTask> {
 
         private final Class<TaskType> taskTypeClass;
         private final Class<ValueType> valueTypeClazz;
@@ -398,11 +398,11 @@ public class DynamoDBStreamsConsumerStatesTest {
         }
 
         @Override
-        protected boolean matchesSafely(ITask item, Description mismatchDescription) {
+        protected boolean matchesSafely(ConsumerTask item, Description mismatchDescription) {
 
-            return Condition.matched(item, mismatchDescription).and(new Condition.Step<ITask, TaskType>() {
+            return Condition.matched(item, mismatchDescription).and(new Condition.Step<ConsumerTask, TaskType>() {
                 @Override
-                public Condition<TaskType> apply(ITask value, Description mismatch) {
+                public Condition<TaskType> apply(ConsumerTask value, Description mismatch) {
                     if (taskTypeClass.equals(value.getClass())) {
                         return Condition.matched(taskTypeClass.cast(value), mismatch);
                     }

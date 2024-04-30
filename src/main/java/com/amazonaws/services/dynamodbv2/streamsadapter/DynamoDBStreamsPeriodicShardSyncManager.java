@@ -45,7 +45,7 @@ public class DynamoDBStreamsPeriodicShardSyncManager implements IPeriodicShardSy
     static final String PERIODIC_SHARD_SYNC_MANAGER = "PeriodicShardSyncManager";
     private final String workerId;
     private final LeaderDecider leaderDecider;
-    private final ITask metricsEmittingShardSyncTask;
+    private final ConsumerTask metricsEmittingShardSyncTask;
     private final ScheduledExecutorService shardSyncThreadPool;
     private final ILeaseManager<KinesisClientLease> leaseManager;
     private final IKinesisProxy kinesisProxy;

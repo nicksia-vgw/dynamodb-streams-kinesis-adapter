@@ -12,19 +12,18 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import com.amazonaws.services.dynamodbv2.streamsadapter.model.RecordAdapter;
-import com.amazonaws.services.kinesis.clientlibrary.interfaces.IRecordProcessorCheckpointer;
-import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.IRecordProcessor;
-import com.amazonaws.services.kinesis.clientlibrary.types.InitializationInput;
-import com.amazonaws.services.kinesis.clientlibrary.types.ProcessRecordsInput;
-import com.amazonaws.services.kinesis.clientlibrary.types.ShutdownInput;
 import com.amazonaws.services.kinesis.model.Record;
+import software.amazon.kinesis.lifecycle.ShutdownInput;
+import software.amazon.kinesis.lifecycle.events.InitializationInput;
+import software.amazon.kinesis.processor.RecordProcessorCheckpointer;
+import software.amazon.kinesis.processor.ShardRecordProcessor;
 
 /**
  * This record processor is intended for use with the DynamoDB Streams Adapter for the
  * Amazon Kinesis Client Library (KCL). It will retrieve the underlying Streams records
  * from the KCL adapter in order to simplify record processing tasks.
  */
-public abstract class StreamsRecordProcessor implements IRecordProcessor {
+public abstract class StreamsRecordProcessor implements ShardRecordProcessor {
 
     private static final Log LOG = LogFactory.getLog(StreamsRecordProcessor.class);
 
@@ -33,13 +32,13 @@ public abstract class StreamsRecordProcessor implements IRecordProcessor {
      */
     public abstract void initialize(InitializationInput initializationInput);
 
-    public void processRecords(ProcessRecordsInput processRecordsInput) {
-        final List<com.amazonaws.services.dynamodbv2.model.Record> streamsRecords = new ArrayList<com.amazonaws.services.dynamodbv2.model.Record>();
-        if (processRecordsInput.getRecords() == null) {
+    public void processRecords(List<Record> records, RecordProcessorCheckpointer checkpointer) {
+        final List<com.amazonaws.services.dynamodbv2.model.Record> streamsRecords = new ArrayList<>();
+        if (records == null) {
             LOG.warn("ProcessRecordsInput's list of Records was null. Skipping.");
             return;
         }
-        for (Record record : processRecordsInput.getRecords()) {
+        for (Record record : records) {
             if (record instanceof RecordAdapter) {
                 streamsRecords.add(((RecordAdapter) record).getInternalObject());
             } else {
@@ -49,7 +48,7 @@ public abstract class StreamsRecordProcessor implements IRecordProcessor {
                 throw new IllegalArgumentException("Record is not an instance of RecordAdapter");
             }
         }
-        processStreamsRecords(streamsRecords, processRecordsInput.getCheckpointer());
+        processStreamsRecords(streamsRecords, checkpointer);
     }
 
     /**
@@ -61,7 +60,7 @@ public abstract class StreamsRecordProcessor implements IRecordProcessor {
      * @param records      Data records to be processed
      * @param checkpointer RecordProcessor should use this instance to checkpoint their progress.
      */
-    public abstract void processStreamsRecords(List<com.amazonaws.services.dynamodbv2.model.Record> records, IRecordProcessorCheckpointer checkpointer);
+    public abstract void processStreamsRecords(List<com.amazonaws.services.dynamodbv2.model.Record> records, RecordProcessorCheckpointer checkpointer);
 
     /**
      * {@inheritDoc}

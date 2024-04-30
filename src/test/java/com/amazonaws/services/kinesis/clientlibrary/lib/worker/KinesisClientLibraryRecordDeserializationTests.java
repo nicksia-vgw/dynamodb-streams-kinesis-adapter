@@ -20,7 +20,6 @@ import java.util.Date;
 import java.util.List;
 
 import com.amazonaws.services.dynamodbv2.streamsadapter.DynamoDBStreamsDataFetcher;
-import com.amazonaws.services.dynamodbv2.streamsadapter.DynamoDBStreamsShutdownTask;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
