@@ -5,28 +5,19 @@
  */
 package com.amazonaws.services.dynamodbv2.streamsadapter;
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
-
-import com.amazonaws.services.kinesis.clientlibrary.lib.worker.KinesisClientLibConfiguration;
-import com.amazonaws.services.kinesis.clientlibrary.lib.worker.LeaderDecider;
-import com.amazonaws.services.kinesis.leases.exceptions.DependencyException;
-import com.amazonaws.services.kinesis.leases.exceptions.InvalidStateException;
-import com.amazonaws.services.kinesis.leases.exceptions.ProvisionedThroughputException;
-import com.amazonaws.services.kinesis.leases.impl.KinesisClientLease;
-import com.amazonaws.services.kinesis.leases.interfaces.ILeaseManager;
 import com.amazonaws.util.CollectionUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import software.amazon.kinesis.coordinator.LeaderDecider;
+import software.amazon.kinesis.leases.Lease;
+import software.amazon.kinesis.leases.LeaseCoordinator;
 
 /**
  * An implementation of the {@code LeaderDecider} to elect leader(s) based on workerId.
@@ -53,9 +44,10 @@ public class StreamsDeterministicShuffleShardSyncLeaderDecider implements Leader
 
     private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
 
-    private final KinesisClientLibConfiguration config;
-    private final ILeaseManager<KinesisClientLease> leaseManager;
+    private final LeaseCoordinator leaseCoordinator;
+
     private final int numPeriodicShardSyncWorkers;
+
     private final ScheduledExecutorService leaderElectionThreadPool;
 
     private volatile Set<String> leaders;
@@ -65,32 +57,27 @@ public class StreamsDeterministicShuffleShardSyncLeaderDecider implements Leader
      * This constructor is package-private to ensure external users use the public
      * constructor(s) and are thereby aware of the number of periodic shard sync workers
      * they want in their application.
-     * @param config KinesisClientLibConfiguration instance
-     * @param leaseManager LeaseManager instance.
+     * @param leaseCoordinator LeaseManager instance.
      */
-    StreamsDeterministicShuffleShardSyncLeaderDecider(KinesisClientLibConfiguration config, ILeaseManager<KinesisClientLease> leaseManager) {
-        this(config, leaseManager, PERIODIC_SHARD_SYNC_MAX_WORKERS_DEFAULT);
+    StreamsDeterministicShuffleShardSyncLeaderDecider(LeaseCoordinator leaseCoordinator) {
+        this(leaseCoordinator, PERIODIC_SHARD_SYNC_MAX_WORKERS_DEFAULT);
     }
 
     /**
      * Create an instance overriding the default periodic shard sync worker count.
      * This is intentionally public for use by consumers to build KCL workers
      * using KCL Worker Builder directly instead of using StreamsWorkerFactory.
-     * @param config KinesisClientLibConfiguration instance
-     * @param leaseManager LeaseManager instance.
+     * @param leaseCoordinator LeaseManager instance.
      * @param numPeriodicShardSyncWorkers Max number of periodic shard sync workers.
      */
-    public StreamsDeterministicShuffleShardSyncLeaderDecider(KinesisClientLibConfiguration config,
-        ILeaseManager<KinesisClientLease> leaseManager, int numPeriodicShardSyncWorkers) {
-        this(config, leaseManager, Executors.newScheduledThreadPool(LEADER_DECIDER_THREAD_COUNT), numPeriodicShardSyncWorkers);
+    public StreamsDeterministicShuffleShardSyncLeaderDecider(LeaseCoordinator leaseCoordinator, int numPeriodicShardSyncWorkers) {
+        this(leaseCoordinator, Executors.newScheduledThreadPool(LEADER_DECIDER_THREAD_COUNT), numPeriodicShardSyncWorkers);
     }
 
     // package-private for use in unit tests.
-    StreamsDeterministicShuffleShardSyncLeaderDecider(KinesisClientLibConfiguration config,
-        ILeaseManager<KinesisClientLease> leaseManager, ScheduledExecutorService leaderElectionThreadPool,
-        int numPeriodicShardSyncWorkers) {
-        this.config = config;
-        this.leaseManager = leaseManager;
+    StreamsDeterministicShuffleShardSyncLeaderDecider(LeaseCoordinator leaseCoordinator, ScheduledExecutorService leaderElectionThreadPool,
+                                                      int numPeriodicShardSyncWorkers) {
+        this.leaseCoordinator = leaseCoordinator;
         this.leaderElectionThreadPool = leaderElectionThreadPool;
         this.numPeriodicShardSyncWorkers = numPeriodicShardSyncWorkers;
     }
@@ -102,10 +89,9 @@ public class StreamsDeterministicShuffleShardSyncLeaderDecider implements Leader
     private void electLeaders() {
         try {
             LOG.debug("Started leader election: " + System.currentTimeMillis());
-            List<KinesisClientLease> leases = leaseManager.listLeases();
-            List<String> uniqueHosts = leases.stream().map(KinesisClientLease::getLeaseOwner)
-                .filter(owner -> owner != null).distinct().sorted().collect(Collectors.toList());
-
+            List<Lease> leases = leaseCoordinator.allLeases();
+            List<String> uniqueHosts = leases.stream().map(Lease::leaseOwner)
+                .filter(Objects::nonNull).distinct().sorted().collect(Collectors.toList());
             Collections.shuffle(uniqueHosts, new Random(DETERMINISTIC_SHUFFLE_SEED));
             int numShardSyncWorkers = Math.min(uniqueHosts.size(), numPeriodicShardSyncWorkers);
             // In case value is currently being read, we wait for reading to complete before updating the variable.
@@ -114,10 +100,6 @@ public class StreamsDeterministicShuffleShardSyncLeaderDecider implements Leader
             leaders = new HashSet<>(uniqueHosts.subList(0, numShardSyncWorkers));
             LOG.info("Elected leaders: " + String.join(", ", leaders));
             LOG.debug("Completed leader election: " + System.currentTimeMillis());
-        } catch (DependencyException | InvalidStateException | ProvisionedThroughputException e) {
-            LOG.error("Exception occurred while trying to fetch all leases for leader election", e);
-        } catch (Throwable t) {
-            LOG.error("Unknown exception during leader election.", t);
         } finally {
             readWriteLock.writeLock().unlock();
         }
