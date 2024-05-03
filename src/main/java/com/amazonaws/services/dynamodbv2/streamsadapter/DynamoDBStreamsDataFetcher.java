@@ -23,17 +23,20 @@ import software.amazon.awssdk.services.kinesis.model.GetShardIteratorRequest;
 import software.amazon.kinesis.checkpoint.SentinelCheckpoint;
 import software.amazon.kinesis.common.InitialPositionInStreamExtended;
 import software.amazon.kinesis.common.StreamIdentifier;
+import software.amazon.kinesis.leases.KinesisShardDetector;
+import software.amazon.kinesis.leases.ShardDetector;
 import software.amazon.kinesis.leases.ShardInfo;
 import software.amazon.kinesis.retrieval.DataFetcherResult;
 import software.amazon.kinesis.retrieval.kpl.ExtendedSequenceNumber;
 import software.amazon.kinesis.retrieval.polling.DataFetcher;
-import software.amazon.kinesis.retrieval.polling.KinesisDataFetcher;
+
 
 public class DynamoDBStreamsDataFetcher implements DataFetcher {
 
     private static final Log LOG = LogFactory.getLog(DynamoDBStreamsDataFetcher.class);
 
     private String nextIterator;
+    private ShardDetector shardDetector;
     private final String shardId;
     private boolean isShardEndReached;
     private boolean isInitialized;
