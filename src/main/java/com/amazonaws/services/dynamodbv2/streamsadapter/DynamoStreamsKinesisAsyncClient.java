@@ -16,11 +16,28 @@ public final class DynamoStreamsKinesisAsyncClient implements KinesisAsyncClient
         this.dynamoStreamsClient = dynamoStreamsClient;
     }
 
+    /*
+        TODO:
+            - ListShards
+            - DescribeStreamSummary
+            - [Consumer Management in DynamoDB]
+            - SubscribeToShard
+            - Register Stream Consumer
+            - Describe Stream Consumer
+     */
+
     @Override
     public CompletableFuture<DescribeStreamResponse> describeStream(DescribeStreamRequest describeStreamRequest) {
         return dynamoStreamsClient
                 .describeStream(SDKMapper.toDynamoStreamsDescribeStreamRequest(describeStreamRequest))
                 .thenApply(SDKMapper::toKinesisDescribeStreamResponse);
+    }
+
+    @Override
+    public CompletableFuture<DescribeStreamSummaryResponse> describeStreamSummary(DescribeStreamSummaryRequest describeStreamRequest) {
+        return dynamoStreamsClient
+                .describeStream(SDKMapper.toDynamoStreamsDescribeStreamRequest(describeStreamRequest))
+                .thenApply(SDKMapper::toKinesisDescribeStreamSummaryResponse);
     }
 
     @Override

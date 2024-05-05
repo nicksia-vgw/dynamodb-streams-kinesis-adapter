@@ -15,15 +15,42 @@ class SDKMapper {
     /**
      * Creates a DescribeStreamRequest for DynamoDB Streams from a Kinesis DescribeStreamRequest.
      *
-     * @param request The Kinesis DescribeStreamRequest.
+     * @param describeStreamRequest The Kinesis DescribeStreamRequest.
      * @return A DynamoDB DescribeStreamRequest.
      */
-    public static software.amazon.awssdk.services.dynamodb.model.DescribeStreamRequest toDynamoStreamsDescribeStreamRequest(final software.amazon.awssdk.services.kinesis.model.DescribeStreamRequest request) {
+    public static software.amazon.awssdk.services.dynamodb.model.DescribeStreamRequest toDynamoStreamsDescribeStreamRequest(final software.amazon.awssdk.services.kinesis.model.DescribeStreamRequest describeStreamRequest) {
         return software.amazon.awssdk.services.dynamodb.model.DescribeStreamRequest.builder()
-                .streamArn(request.streamARN())
-                .exclusiveStartShardId(request.exclusiveStartShardId())
-                .limit(request.limit())
+                .streamArn(describeStreamRequest.streamARN())
+                .exclusiveStartShardId(describeStreamRequest.exclusiveStartShardId())
+                .limit(describeStreamRequest.limit())
                 .build();
+    }
+
+    /**
+     * Creates a DescribeStreamRequest for DynamoDB Streams from a Kinesis DescribeStreamSummaryRequest.
+     *
+     * @param describeStreamSummaryRequest The Kinesis DescribeStreamRequest.
+     * @return A DynamoDB DescribeStreamRequest.
+     */
+    public static software.amazon.awssdk.services.dynamodb.model.DescribeStreamRequest toDynamoStreamsDescribeStreamRequest(final software.amazon.awssdk.services.kinesis.model.DescribeStreamSummaryRequest describeStreamSummaryRequest) {
+        return software.amazon.awssdk.services.dynamodb.model.DescribeStreamRequest.builder()
+                .streamArn(describeStreamSummaryRequest.streamARN())
+                .build();
+    }
+
+    public static software.amazon.awssdk.services.kinesis.model.DescribeStreamSummaryResponse toKinesisDescribeStreamSummaryResponse(software.amazon.awssdk.services.dynamodb.model.DescribeStreamResponse describeStreamResponse) {
+        final software.amazon.awssdk.services.dynamodb.model.StreamDescription streamDescription = describeStreamResponse.streamDescription();
+
+        return software.amazon.awssdk.services.kinesis.model.DescribeStreamSummaryResponse.builder()
+                .streamDescriptionSummary(software.amazon.awssdk.services.kinesis.model.StreamDescriptionSummary.builder()
+                    .enhancedMonitoring(new EnhancedMetrics[0])
+                    .retentionPeriodHours(DYNAMODB_STREAMS_RETENTION_PERIOD_HOURS)
+                    .streamARN(streamDescription.streamArn())
+                    .streamCreationTimestamp(streamDescription.creationRequestDateTime())
+                    .streamName(streamDescription.tableName())
+                    .streamStatus(toKinesisStreamStatus(streamDescription.streamStatus()))
+                    .build()
+                ).build();
     }
 
     /**
@@ -32,8 +59,8 @@ class SDKMapper {
      * @param response The DynamoDB stream description response.
      * @return A Kinesis DescribeStreamResponse based on the DynamoDB stream description.
      */
-    public static software.amazon.awssdk.services.kinesis.model.DescribeStreamResponse toKinesisDescribeStreamResponse(final software.amazon.awssdk.services.dynamodb.model.DescribeStreamResponse response) {
-        final software.amazon.awssdk.services.dynamodb.model.StreamDescription streamDescription = response.streamDescription();
+    public static software.amazon.awssdk.services.kinesis.model.DescribeStreamResponse toKinesisDescribeStreamResponse(final software.amazon.awssdk.services.dynamodb.model.DescribeStreamResponse describeStreamResponse) {
+        final software.amazon.awssdk.services.dynamodb.model.StreamDescription streamDescription = describeStreamResponse.streamDescription();
 
         return software.amazon.awssdk.services.kinesis.model.DescribeStreamResponse.builder()
                 .streamDescription(software.amazon.awssdk.services.kinesis.model.StreamDescription.builder()
