@@ -18,10 +18,6 @@ public final class DynamoStreamsKinesisAsyncClient implements KinesisAsyncClient
 
     @Override
     public CompletableFuture<DescribeStreamResponse> describeStream(DescribeStreamRequest describeStreamRequest) {
-        /*
-            TODO: There was a request cache
-            TODO: Handle disabled stream
-         */
         return dynamoStreamsClient
                 .describeStream(SDKMapper.toDynamoStreamsDescribeStreamRequest(describeStreamRequest))
                 .thenApply(SDKMapper::toKinesisDescribeStreamResponse);
