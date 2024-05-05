@@ -23,7 +23,6 @@ import com.amazonaws.services.dynamodbv2.local.embedded.DynamoDBEmbedded;
 import com.amazonaws.services.dynamodbv2.local.shared.access.AmazonDynamoDBLocal;
 import com.amazonaws.services.dynamodbv2.model.DeleteTableRequest;
 import com.amazonaws.services.dynamodbv2.streamsadapter.AmazonDynamoDBStreamsAdapterClient;
-import com.amazonaws.services.dynamodbv2.streamsadapter.StreamsWorkerFactory;
 import com.amazonaws.services.dynamodbv2.streamsadapter.util.TestRecordProcessorFactory;
 import com.amazonaws.services.dynamodbv2.streamsadapter.util.TestUtil;
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.KinesisClientLibConfiguration;

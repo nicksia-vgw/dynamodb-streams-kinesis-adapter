@@ -5,15 +5,6 @@
  */
 package com.amazonaws.services.dynamodbv2.streamsadapter.leases;
 
-import com.amazonaws.services.kinesis.clientlibrary.lib.checkpoint.SentinelCheckpoint;
-import com.amazonaws.services.kinesis.leases.exceptions.DependencyException;
-import com.amazonaws.services.kinesis.leases.exceptions.InvalidStateException;
-import com.amazonaws.services.kinesis.leases.exceptions.ProvisionedThroughputException;
-import com.amazonaws.services.kinesis.leases.impl.KinesisClientLease;
-import com.amazonaws.services.kinesis.leases.impl.Lease;
-import com.amazonaws.services.kinesis.leases.interfaces.ILeaseManager;
-import com.amazonaws.services.kinesis.leases.interfaces.ILeaseTaker;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 

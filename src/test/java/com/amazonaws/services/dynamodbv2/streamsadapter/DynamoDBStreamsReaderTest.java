@@ -8,7 +8,6 @@ package com.amazonaws.services.dynamodbv2.streamsadapter;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.services.dynamodbv2.model.ResourceNotFoundException;
 import com.amazonaws.services.dynamodbv2.streamsadapter.model.ShardAdapter;
-import com.amazonaws.services.dynamodbv2.streamsadapter.utils.ThreadSleeper;
 import com.amazonaws.services.kinesis.AmazonKinesis;
 import com.amazonaws.services.kinesis.model.DescribeStreamRequest;
 import com.amazonaws.services.kinesis.model.DescribeStreamResult;
@@ -52,7 +51,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @RunWith(Parameterized.class)
-public class DynamoDBStreamsProxyTest {
+public class DynamoDBStreamsReaderTest {
 
     private static final String STREAM_NAME = "StreamName";
     private static final String STARTING_SEQUENCE_NUMBER = "1";
@@ -84,11 +83,11 @@ public class DynamoDBStreamsProxyTest {
     @Mock
     private Random mockRandom;
 
-    private DynamoDBStreamsProxy dynamoDBStreamsProxy;
+    private DynamoDBStreamsReader dynamoDBStreamsProxy;
 
     private Boolean isLeafParentOpen;
 
-    public DynamoDBStreamsProxyTest(Boolean isLeafParentOpen) {
+    public DynamoDBStreamsReaderTest(Boolean isLeafParentOpen) {
         this.isLeafParentOpen = isLeafParentOpen;
     }
 
@@ -105,7 +104,7 @@ public class DynamoDBStreamsProxyTest {
     public void setup() {
         MockitoAnnotations.initMocks(this);
         Mockito.doNothing().when(mockSleeper).sleep(anyLong());
-        dynamoDBStreamsProxy = new DynamoDBStreamsProxy
+        dynamoDBStreamsProxy = new DynamoDBStreamsReader
                 .Builder(STREAM_NAME, mockAwsCredentialsProvider, mockKinesisClient)
                 .withSleeper(mockSleeper)
                 .withMaxRetriesToResolveInconsistencies(MAX_RETRIES_TO_RESOLVE_INCONSISTENCIES)
@@ -707,11 +706,11 @@ public class DynamoDBStreamsProxyTest {
             // that was fixed with {DynamoDBStreamsProxy#END_SEQUENCE_NUMBER_TO_CLOSE_OPEN_PARENT}, we assert on the
             // value of the end sequence number being equal to it.
             if (isLeafParentOpen && fixedOpenParentShardIds.contains(shard.getShardId())) {
-                assertEquals(DynamoDBStreamsProxy.END_SEQUENCE_NUMBER_TO_CLOSE_OPEN_PARENT, shard.getSequenceNumberRange().getEndingSequenceNumber());
+                assertEquals(DynamoDBStreamsReader.END_SEQUENCE_NUMBER_TO_CLOSE_OPEN_PARENT, shard.getSequenceNumberRange().getEndingSequenceNumber());
             } else {
                 // for all other non-leaf shards, we ensure we did not overwrite the existing value with
                 // {DynamoDBStreamsProxy#END_SEQUENCE_NUMBER_TO_CLOSE_OPEN_PARENT}.
-                assertNotEquals(DynamoDBStreamsProxy.END_SEQUENCE_NUMBER_TO_CLOSE_OPEN_PARENT, shard.getSequenceNumberRange().getEndingSequenceNumber());
+                assertNotEquals(DynamoDBStreamsReader.END_SEQUENCE_NUMBER_TO_CLOSE_OPEN_PARENT, shard.getSequenceNumberRange().getEndingSequenceNumber());
             }
         }
     }

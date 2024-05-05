@@ -7,42 +7,14 @@ package com.amazonaws.services.dynamodbv2.streamsadapter;
 
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.services.dynamodbv2.streamsadapter.model.ShardAdapter;
-import com.amazonaws.services.dynamodbv2.streamsadapter.utils.Sleeper;
-import com.amazonaws.services.dynamodbv2.streamsadapter.utils.ThreadSleeper;
 import com.amazonaws.services.kinesis.AmazonKinesis;
-import com.amazonaws.services.kinesis.clientlibrary.proxies.IKinesisProxyExtended;
-import com.amazonaws.services.kinesis.clientlibrary.proxies.ShardClosureVerificationResponse;
-
-import com.amazonaws.services.kinesis.model.DescribeStreamRequest;
-import com.amazonaws.services.kinesis.model.DescribeStreamResult;
-import com.amazonaws.services.kinesis.model.ExpiredIteratorException;
-import com.amazonaws.services.kinesis.model.GetRecordsRequest;
-import com.amazonaws.services.kinesis.model.GetRecordsResult;
-import com.amazonaws.services.kinesis.model.GetShardIteratorRequest;
-import com.amazonaws.services.kinesis.model.GetShardIteratorResult;
-import com.amazonaws.services.kinesis.model.InvalidArgumentException;
-import com.amazonaws.services.kinesis.model.LimitExceededException;
-import com.amazonaws.services.kinesis.model.PutRecordResult;
-import com.amazonaws.services.kinesis.model.ResourceNotFoundException;
-import com.amazonaws.services.kinesis.model.SequenceNumberRange;
-import com.amazonaws.services.kinesis.model.Shard;
-import com.amazonaws.services.kinesis.model.ShardIteratorType;
-import com.amazonaws.services.kinesis.model.StreamStatus;
-import com.amazonaws.services.kinesis.model.ShardFilter;
+import com.amazonaws.services.kinesis.model.*;
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import java.nio.ByteBuffer;
-import java.util.Date;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -50,21 +22,17 @@ import java.util.stream.Collectors;
 /**
  * An implementation of IKinesisProxy to make calls to DynamoDBStreams service.
  */
-public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
-    private static final Log LOG = LogFactory.getLog(DynamoDBStreamsProxy.class);
-
-    private static final Set<ShardIteratorType> EXPECTED_ITERATOR_TYPES = EnumSet
-        .of(ShardIteratorType.AT_SEQUENCE_NUMBER, ShardIteratorType.AFTER_SEQUENCE_NUMBER);
-
-    private static final long DEFAULT_DESCRIBE_STREAM_BACKOFF_MILLIS = 1000L;
-    private static final int DEFAULT_DESCRIBE_STREAM_RETRY_TIMES = 50;
-
+public class DynamoDBStreamsReader {
     /**
      * This constant is used to set the END SEQUENCE NUMBER in non-leaf nodes that are seen as open
      * due to aggregation of paginated shard lists of DescribeStream.
      */
     static final String END_SEQUENCE_NUMBER_TO_CLOSE_OPEN_PARENT = String.valueOf(Long.MAX_VALUE);
-
+    private static final Log LOG = LogFactory.getLog(DynamoDBStreamsReader.class);
+    private static final Set<ShardIteratorType> EXPECTED_ITERATOR_TYPES = EnumSet
+            .of(ShardIteratorType.AT_SEQUENCE_NUMBER, ShardIteratorType.AFTER_SEQUENCE_NUMBER);
+    private static final long DEFAULT_DESCRIBE_STREAM_BACKOFF_MILLIS = 1000L;
+    private static final int DEFAULT_DESCRIBE_STREAM_RETRY_TIMES = 50;
     /**
      * If jitter is not enabled, the default combination of DEFAULT_INCONSISTENCY_RESOLUTION_RETRY_BACKOFF_BASE_MILLIS,
      * DEFAULT_INCONSISTENCY_RESOLUTION_RETRY_BACKOFF_MULTIPLIER_MILLIS and,
@@ -95,30 +63,29 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
     private ShardGraph shardGraph;
 
     /**
-     *
-     * @param streamName Data records will be fetched from this stream.
-     * @param credentialProvider Provides credentials for signing Kinesis requests.
-     * @param kinesisClient Kinesis client (used to fetch data from Kinesis).
-     * @param describeStreamBackoffTimeInMillis Backoff time for DescribeStream calls in milliseconds.
-     * @param maxDescribeStreamRetryAttempts Number of retry attempts for DescribeStream calls.
-     * @param maxRetriesToResolveInconsistencies Number of retry attempts to resolve any shard lineage inconsistencies.
-     * @param inconsistencyResolutionRetryBackoffBaseInMillis Base for calculating backoff when resolving shard lineage
-     *                                                        inconsistencies.
+     * @param streamName                                            Data records will be fetched from this stream.
+     * @param credentialProvider                                    Provides credentials for signing Kinesis requests.
+     * @param kinesisClient                                         Kinesis client (used to fetch data from Kinesis).
+     * @param describeStreamBackoffTimeInMillis                     Backoff time for DescribeStream calls in milliseconds.
+     * @param maxDescribeStreamRetryAttempts                        Number of retry attempts for DescribeStream calls.
+     * @param maxRetriesToResolveInconsistencies                    Number of retry attempts to resolve any shard lineage inconsistencies.
+     * @param inconsistencyResolutionRetryBackoffBaseInMillis       Base for calculating backoff when resolving shard lineage
+     *                                                              inconsistencies.
      * @param inconsistencyResolutionRetryBackoffMultiplierInMillis Multiplier for calculating backoff when resolving
      *                                                              shard lineage inconsistencies.
-     * @param sleeper Simple abstraction on Thread.sleep to allow unit testing of backoff mechanism
+     * @param sleeper                                               Simple abstraction on Thread.sleep to allow unit testing of backoff mechanism
      */
-    private DynamoDBStreamsProxy(final String streamName,
-        AWSCredentialsProvider credentialProvider,
-        AmazonKinesis kinesisClient,
-        long describeStreamBackoffTimeInMillis,
-        int maxDescribeStreamRetryAttempts,
-        int maxRetriesToResolveInconsistencies,
-        long inconsistencyResolutionRetryBackoffBaseInMillis,
-        long inconsistencyResolutionRetryBackoffMultiplierInMillis,
-        boolean isDefaultInconsistencyResolutionRetryBackoffJitterEnabled,
-        Sleeper sleeper,
-        Random random) {
+    private DynamoDBStreamsReader(final String streamName,
+                                  AWSCredentialsProvider credentialProvider,
+                                  AmazonKinesis kinesisClient,
+                                  long describeStreamBackoffTimeInMillis,
+                                  int maxDescribeStreamRetryAttempts,
+                                  int maxRetriesToResolveInconsistencies,
+                                  long inconsistencyResolutionRetryBackoffBaseInMillis,
+                                  long inconsistencyResolutionRetryBackoffMultiplierInMillis,
+                                  boolean isDefaultInconsistencyResolutionRetryBackoffJitterEnabled,
+                                  Sleeper sleeper,
+                                  Random random) {
         this.streamName = streamName;
         this.credentialsProvider = credentialProvider;
         this.describeStreamBackoffTimeInMillis = describeStreamBackoffTimeInMillis;
@@ -126,9 +93,9 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
         this.maxRetriesToResolveInconsistencies = maxRetriesToResolveInconsistencies;
         this.inconsistencyResolutionRetryBackoffBaseInMillis = inconsistencyResolutionRetryBackoffBaseInMillis;
         this.inconsistencyResolutionRetryBackoffMultiplierInMillis
-            = inconsistencyResolutionRetryBackoffMultiplierInMillis;
+                = inconsistencyResolutionRetryBackoffMultiplierInMillis;
         this.isInconsistencyResolutionRetryBackoffJitterEnabled
-            = isDefaultInconsistencyResolutionRetryBackoffJitterEnabled;
+                = isDefaultInconsistencyResolutionRetryBackoffJitterEnabled;
         this.client = kinesisClient;
         this.sleeper = sleeper;
         this.random = random;
@@ -136,9 +103,9 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
         LOG.debug("DynamoDBStreamsProxy( " + streamName + ")");
     }
 
-    @Override
+
     public GetRecordsResult get(String shardIterator, int maxRecords)
-        throws ResourceNotFoundException, InvalidArgumentException, ExpiredIteratorException {
+            throws ResourceNotFoundException, InvalidArgumentException, ExpiredIteratorException {
 
         final GetRecordsRequest getRecordsRequest = new GetRecordsRequest();
         getRecordsRequest.setRequestCredentials(credentialsProvider.getCredentials());
@@ -149,9 +116,9 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
 
     }
 
-    @Override
+
     public DescribeStreamResult getStreamInfo(String startShardId)
-        throws ResourceNotFoundException, LimitExceededException {
+            throws ResourceNotFoundException, LimitExceededException {
         final DescribeStreamRequest describeStreamRequest = new DescribeStreamRequest();
         describeStreamRequest.setRequestCredentials(credentialsProvider.getCredentials());
         describeStreamRequest.setStreamName(streamName);
@@ -167,7 +134,7 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
                 response = client.describeStream(describeStreamRequest);
             } catch (LimitExceededException le) {
                 LOG.info("Got LimitExceededException when describing stream " + streamName + ". Backing off for "
-                    + this.describeStreamBackoffTimeInMillis + " millis.");
+                        + this.describeStreamBackoffTimeInMillis + " millis.");
                 sleeper.sleep(this.describeStreamBackoffTimeInMillis);
                 lastException = le;
             }
@@ -182,16 +149,16 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
 
         final String streamStatus = response.getStreamDescription().getStreamStatus();
         if (StreamStatus.ACTIVE.toString().equals(streamStatus)
-            || StreamStatus.UPDATING.toString().equals(streamStatus)) {
+                || StreamStatus.UPDATING.toString().equals(streamStatus)) {
             return response;
         } else {
             LOG.info("Stream is in status " + streamStatus
-                + ", DescribeStream returning null (wait until stream is Active or Updating");
+                    + ", DescribeStream returning null (wait until stream is Active or Updating");
             return null;
         }
     }
 
-    @Override
+
     public Shard getShard(String shardId) {
         if (this.listOfShardsSinceLastGet.get() == null) {
             //Update this.listOfShardsSinceLastGet as needed.
@@ -199,7 +166,7 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
         }
 
         for (Shard shard : listOfShardsSinceLastGet.get()) {
-            if (shard.getShardId().equals(shardId))  {
+            if (shard.getShardId().equals(shardId)) {
                 return shard;
             }
         }
@@ -208,7 +175,6 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
         return null;
     }
 
-    @Override
     public synchronized List<Shard> getShardList() {
 
         if (shardGraph == null) {
@@ -229,7 +195,7 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
             while (shardGraph.closedLeafNodeCount() > 0 && retryAttempt < maxRetriesToResolveInconsistencies) {
                 final long backOffTime = getInconsistencyBackoffTimeInMillis(retryAttempt);
                 String infoMsg = String.format("Inconsistency resolution retry attempt: %d. Backing off for %d millis.",
-                    retryAttempt, backOffTime);
+                        retryAttempt, backOffTime);
                 LOG.info(infoMsg);
                 sleeper.sleep(backOffTime);
                 ShardGraphProcessingResult shardGraphProcessingResult = resolveInconsistenciesInShardGraph();
@@ -238,7 +204,7 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
                     return null;
                 } else if (shardGraphProcessingResult.equals(ShardGraphProcessingResult.RESOLVED_INCONSISTENCIES_AND_ABORTED)) {
                     infoMsg = String.format("An intermediate page in DescribeStream response resolved inconsistencies. "
-                        + "Total retry attempts taken to resolve inconsistencies: %d", retryAttempt + 1);
+                            + "Total retry attempts taken to resolve inconsistencies: %d", retryAttempt + 1);
                     LOG.info(infoMsg);
                     break;
                 }
@@ -250,7 +216,7 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
         } else {
             if (shardGraph.closedLeafNodeCount() > 0) {
                 String msg = String.format("Returning shard list with %s closed leaf node shards.",
-                    shardGraph.closedLeafNodeCount());
+                        shardGraph.closedLeafNodeCount());
                 LOG.debug(msg);
             }
         }
@@ -260,22 +226,10 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
         return listOfShardsSinceLastGet.get();
     }
 
-    @Override
-    public synchronized List<Shard> getShardListWithFilter(ShardFilter shardFilter){
+
+    public synchronized List<Shard> getShardListWithFilter(ShardFilter shardFilter) {
 
         throw new UnsupportedOperationException("DynamoDB Streams does not support Shard List Filtering");
-    }
-
-    @Override
-    /**
-     * This method gets invoked from ShutdownTask when the shard consumer is shutting down.
-     * Kinesis modified KCL to verify that the shard being closed has children, and this requires listing all shards.
-     * Since DynamoDB streams can have a large number of shards, this verification delays shard closure, and can severely
-     * degrade processing performance. For large streams, this can even cause stream processing to completely halt.
-     * Therefore, we skip performing this validation in ShutdownTask by simply returning true.
-     */
-    public ShardClosureVerificationResponse verifyShardClosure(String shardId) {
-        return () -> true; // isShardClosed -> true
     }
 
     private ShardGraphProcessingResult buildShardGraphSnapshot() {
@@ -305,11 +259,11 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
     private ShardGraphProcessingResult resolveInconsistenciesInShardGraph() {
         DescribeStreamResult response;
         final String warnMsg = String.format("Inconsistent shard graph state detected. "
-            + "Fetched: %d shards. Closed leaves: %d shards", shardGraph.size(), shardGraph.closedLeafNodeCount());
+                + "Fetched: %d shards. Closed leaves: %d shards", shardGraph.size(), shardGraph.closedLeafNodeCount());
         LOG.warn(warnMsg);
         if (LOG.isDebugEnabled()) {
             final String debugMsg = String.format("Following leaf node shards are closed: %s",
-                String.join(", ", shardGraph.getAllClosedLeafNodeIds()));
+                    String.join(", ", shardGraph.getAllClosedLeafNodeIds()));
             LOG.debug(debugMsg);
         }
         String exclusiveStartShardId = shardGraph.getEarliestClosedLeafNodeId();
@@ -320,7 +274,7 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
             } else {
                 shardGraph.addToClosedLeafNodes(response.getStreamDescription().getShards());
                 LOG.debug(String.format("Resolving inconsistencies in shard graph; total shard count: %d",
-                    shardGraph.size()));
+                        shardGraph.size()));
                 if (shardGraph.closedLeafNodeCount() == 0) {
                     return ShardGraphProcessingResult.RESOLVED_INCONSISTENCIES_AND_ABORTED;
                 }
@@ -333,11 +287,11 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
     @VisibleForTesting
     long getInconsistencyBackoffTimeInMillis(int retryAttempt) {
         double baseMultiplier = isInconsistencyResolutionRetryBackoffJitterEnabled ? random.nextDouble() : 1.0;
-        return (long)(baseMultiplier * inconsistencyResolutionRetryBackoffBaseInMillis) +
-            (long)Math.pow(2.0, retryAttempt) * inconsistencyResolutionRetryBackoffMultiplierInMillis;
+        return (long) (baseMultiplier * inconsistencyResolutionRetryBackoffBaseInMillis) +
+                (long) Math.pow(2.0, retryAttempt) * inconsistencyResolutionRetryBackoffMultiplierInMillis;
     }
 
-    @Override
+
     public Set<String> getAllShardIds() throws ResourceNotFoundException {
         List<Shard> shards = getShardList();
         if (shards == null) {
@@ -351,7 +305,7 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
         }
     }
 
-    @Override
+
     public String getIterator(String shardId, String iteratorType, String sequenceNumber) {
         ShardIteratorType shardIteratorType;
         try {
@@ -363,7 +317,7 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
 
         if (!EXPECTED_ITERATOR_TYPES.contains(shardIteratorType)) {
             LOG.info("This method should only be used for AT_SEQUENCE_NUMBER and AFTER_SEQUENCE_NUMBER "
-                + "ShardIteratorTypes. For methods to use with other ShardIteratorTypes, see IKinesisProxy.java");
+                    + "ShardIteratorTypes. For methods to use with other ShardIteratorTypes, see IKinesisProxy.java");
         }
         final GetShardIteratorRequest getShardIteratorRequest = new GetShardIteratorRequest();
         getShardIteratorRequest.setRequestCredentials(credentialsProvider.getCredentials());
@@ -376,7 +330,7 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
         return response.getShardIterator();
     }
 
-    @Override
+
     public String getIterator(String shardId, String iteratorType) {
         final GetShardIteratorRequest getShardIteratorRequest = new GetShardIteratorRequest();
         getShardIteratorRequest.setRequestCredentials(credentialsProvider.getCredentials());
@@ -389,16 +343,16 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
         return response.getShardIterator();
     }
 
-    @Override
+
     public String getIterator(String shardId, Date timestamp) {
         throw new UnsupportedOperationException("DynamoDB Streams does not support shard iterator of type AT_TIMESTAMP");
     }
 
-    @Override
+
     public PutRecordResult put(String exclusiveMinimumSequenceNumber,
-        String explicitHashKey,
-        String partitionKey,
-        ByteBuffer data) throws ResourceNotFoundException, InvalidArgumentException {
+                               String explicitHashKey,
+                               String partitionKey,
+                               ByteBuffer data) throws ResourceNotFoundException, InvalidArgumentException {
         throw new UnsupportedOperationException("DynamoDB Streams does not support Put operations.");
     }
 
@@ -438,7 +392,7 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
 
         boolean isShardClosed() {
             return shard.getSequenceNumberRange() != null &&
-                shard.getSequenceNumberRange().getEndingSequenceNumber() != null;
+                    shard.getSequenceNumberRange().getEndingSequenceNumber() != null;
         }
 
         boolean addDescendant(String shardId) {
@@ -473,6 +427,7 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
 
         /**
          * Adds a list of shards to the graph.
+         *
          * @param shards List of shards to be added to the graph.
          */
         private void addNodes(List<Shard> shards) {
@@ -481,7 +436,7 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
             }
             if (LOG.isDebugEnabled()) {
                 LOG.debug(String.format("Updating the graph with the following shards: \n %s",
-                    String.join(", ", shards.stream().map(Shard::getShardId).collect(Collectors.toList()))));
+                        String.join(", ", shards.stream().map(Shard::getShardId).collect(Collectors.toList()))));
             }
             for (Shard shard : shards) {
                 addNode(shard);
@@ -494,16 +449,16 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
             SequenceNumberRange innerSequenceNumberRange = parentNode.getShard().getSequenceNumberRange();
             if (innerSequenceNumberRange != null && innerSequenceNumberRange.getEndingSequenceNumber() == null) {
                 LOG.debug(String.format("Marked open parent shard %s of shard %s as closed",
-                    parentNode.getShard().getShardId(), childNode.getShard().getShardId()));
+                        parentNode.getShard().getShardId(), childNode.getShard().getShardId()));
                 com.amazonaws.services.dynamodbv2.model.SequenceNumberRange modifiedSequenceNumberRange
-                    = new com.amazonaws.services.dynamodbv2.model.SequenceNumberRange()
-                    .withStartingSequenceNumber(innerSequenceNumberRange.getStartingSequenceNumber())
-                    .withEndingSequenceNumber(END_SEQUENCE_NUMBER_TO_CLOSE_OPEN_PARENT);
+                        = new com.amazonaws.services.dynamodbv2.model.SequenceNumberRange()
+                        .withStartingSequenceNumber(innerSequenceNumberRange.getStartingSequenceNumber())
+                        .withEndingSequenceNumber(END_SEQUENCE_NUMBER_TO_CLOSE_OPEN_PARENT);
                 com.amazonaws.services.dynamodbv2.model.Shard shard
-                    = new com.amazonaws.services.dynamodbv2.model.Shard()
-                    .withShardId(innerShard.getShardId())
-                    .withParentShardId(innerShard.getParentShardId())
-                    .withSequenceNumberRange(modifiedSequenceNumberRange);
+                        = new com.amazonaws.services.dynamodbv2.model.Shard()
+                        .withShardId(innerShard.getShardId())
+                        .withParentShardId(innerShard.getParentShardId())
+                        .withSequenceNumberRange(modifiedSequenceNumberRange);
                 ShardAdapter shardAdapter = new ShardAdapter(shard);
                 ShardNode newParentNode = new ShardNode(shardAdapter, parentNode.getDescendants());
                 // parentNode has been modified, overwrite corresponding entry in the map.
@@ -516,6 +471,7 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
         /**
          * Adds descendants only to closed leaf nodes in order to ensure all leaf nodes in
          * the graph are open.
+         *
          * @param shards list of shards obtained from DescribeStream call.
          */
         private void addToClosedLeafNodes(List<Shard> shards) {
@@ -524,7 +480,7 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
             }
             if (LOG.isDebugEnabled()) {
                 LOG.debug(String.format("Attempting to resolve inconsistencies in the graph with the following shards: \n %s",
-                    String.join(", ", shards.stream().map(Shard::getShardId).collect(Collectors.toList()))));
+                        String.join(", ", shards.stream().map(Shard::getShardId).collect(Collectors.toList()))));
             }
             for (Shard shard : shards) {
                 final String parentShardId = shard.getParentShardId();
@@ -589,15 +545,15 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
 
     public static class Builder {
 
+        private final String streamName;
+        private final AmazonKinesis kinesisClient;
+        private final AWSCredentialsProvider credentialsProvider;
         private int maxDescribeStreamRetryAttempts = DEFAULT_DESCRIBE_STREAM_RETRY_TIMES;
         private int maxRetriesToResolveInconsistencies = DEFAULT_MAX_RETRIES_TO_RESOLVE_INCONSISTENCIES;
         private long describeStreamBackoffTimeInMillis = DEFAULT_DESCRIBE_STREAM_BACKOFF_MILLIS;
         private long inconsistencyResolutionRetryBackoffMultiplierInMillis = DEFAULT_INCONSISTENCY_RESOLUTION_RETRY_BACKOFF_MULTIPLIER_MILLIS;
         private long inconsistencyResolutionRetryBackoffBaseInMillis = DEFAULT_INCONSISTENCY_RESOLUTION_RETRY_BACKOFF_BASE_MILLIS;
         private boolean isInconsistencyResolutionRetryBackoffJitterEnabled = DEFAULT_INCONSISTENCY_RESOLUTION_RETRY_BACKOFF_JITTER_ENABLED;
-        private final String streamName;
-        private final AmazonKinesis kinesisClient;
-        private final AWSCredentialsProvider credentialsProvider;
         private Sleeper sleeper;
         private Random random;
 
@@ -623,19 +579,19 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
         }
 
         public Builder withInconsistencyResolutionRetryBackoffMultiplierInMillis(
-            long inconsistencyResolutionRetryBackoffMultiplierInMillis) {
+                long inconsistencyResolutionRetryBackoffMultiplierInMillis) {
             this.inconsistencyResolutionRetryBackoffMultiplierInMillis = inconsistencyResolutionRetryBackoffMultiplierInMillis;
             return this;
         }
 
         public Builder withInconsistencyResolutionRetryBackoffBaseInMillis(
-            long inconsistencyResolutionRetryBackoffBaseInMillis) {
+                long inconsistencyResolutionRetryBackoffBaseInMillis) {
             this.inconsistencyResolutionRetryBackoffBaseInMillis = inconsistencyResolutionRetryBackoffBaseInMillis;
             return this;
         }
 
         public Builder withInconsistencyResolutionRetryBackoffJitterEnabled(
-            boolean inconsistencyResolutionRetryBackoffJitterEnabled) {
+                boolean inconsistencyResolutionRetryBackoffJitterEnabled) {
             this.isInconsistencyResolutionRetryBackoffJitterEnabled = inconsistencyResolutionRetryBackoffJitterEnabled;
             return this;
         }
@@ -650,25 +606,25 @@ public class DynamoDBStreamsProxy implements IKinesisProxyExtended {
             return this;
         }
 
-        public DynamoDBStreamsProxy build() {
+        public DynamoDBStreamsReader build() {
             if (null == sleeper) {
                 sleeper = new ThreadSleeper();
             }
             if (null == random) {
                 random = ThreadLocalRandom.current();
             }
-            return new DynamoDBStreamsProxy(
-                streamName,
-                credentialsProvider,
-                kinesisClient,
-                describeStreamBackoffTimeInMillis,
-                maxDescribeStreamRetryAttempts,
-                maxRetriesToResolveInconsistencies,
-                inconsistencyResolutionRetryBackoffBaseInMillis,
-                inconsistencyResolutionRetryBackoffMultiplierInMillis,
-                isInconsistencyResolutionRetryBackoffJitterEnabled,
-                sleeper,
-                random);
+            return new DynamoDBStreamsReader(
+                    streamName,
+                    credentialsProvider,
+                    kinesisClient,
+                    describeStreamBackoffTimeInMillis,
+                    maxDescribeStreamRetryAttempts,
+                    maxRetriesToResolveInconsistencies,
+                    inconsistencyResolutionRetryBackoffBaseInMillis,
+                    inconsistencyResolutionRetryBackoffMultiplierInMillis,
+                    isInconsistencyResolutionRetryBackoffJitterEnabled,
+                    sleeper,
+                    random);
         }
 
     }

@@ -49,7 +49,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
-public class DynamoDBStreamsProxyImportedFromKinesisProxyTest {
+public class DynamoDBStreamsProxyImportedFromKinesisReaderTest {
     private static final String TEST_STRING = "TestString";
     private static final long BACKOFF_TIME = 10L;
     private static final int RETRY_TIMES = 3;
@@ -67,7 +67,7 @@ public class DynamoDBStreamsProxyImportedFromKinesisProxyTest {
     @Mock
     private Shard shard;
 
-    private DynamoDBStreamsProxy proxy;
+    private DynamoDBStreamsReader proxy;
 
     // Test shards for verifying.
     private Set<String> shardIdSet;
@@ -76,7 +76,7 @@ public class DynamoDBStreamsProxyImportedFromKinesisProxyTest {
     @Before
     public void setUpTest() {
         // Set up DynamoDB Streams proxy
-        proxy = new DynamoDBStreamsProxy
+        proxy = new DynamoDBStreamsReader
             .Builder(TEST_STRING, mockCredentialsProvider, mockClient)
             .withDescribeStreamBackoffTimeInMillis(BACKOFF_TIME)
             .withMaxDescribeStreamRetryAttempts(RETRY_TIMES)
