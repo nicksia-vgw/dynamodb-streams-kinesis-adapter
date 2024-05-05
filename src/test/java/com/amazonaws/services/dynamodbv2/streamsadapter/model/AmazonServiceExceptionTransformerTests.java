@@ -12,6 +12,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.powermock.api.mockito.PowerMockito.whenNew;
 
+import com.amazonaws.services.dynamodbv2.streamsadapter.AmazonServiceExceptionTransformer;
+import com.amazonaws.services.dynamodbv2.streamsadapter.UnableToReadMoreRecordsException;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Matchers;
@@ -36,8 +38,6 @@ import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughputExceededExce
 import com.amazonaws.services.dynamodbv2.model.ResourceNotFoundException;
 import com.amazonaws.services.dynamodbv2.model.ShardIteratorType;
 import com.amazonaws.services.dynamodbv2.model.TrimmedDataAccessException;
-import com.amazonaws.services.dynamodbv2.streamsadapter.AmazonDynamoDBStreamsAdapterClient;
-import com.amazonaws.services.dynamodbv2.streamsadapter.AmazonDynamoDBStreamsAdapterClient.SkipRecordsBehavior;
 
 @PrepareForTest({AmazonDynamoDBStreamsClient.class, AmazonDynamoDBStreamsAdapterClient.class})
 @RunWith(PowerMockRunner.class)
@@ -274,7 +274,7 @@ public class AmazonServiceExceptionTransformerTests extends AmazonServiceExcepti
     public void testGetRecordsTrimmedDataAccessExceptionKCLRetry() throws Exception {
         TrimmedDataAccessException tdae = new TrimmedDataAccessException(TEST_MESSAGE);
         setFields(tdae, TRIMMED_DATA_ACCESS_EXCEPTION, ErrorType.Client, REQUEST_ID, SERVICE_NAME, STATUS_CODE_400);
-        doGetRecordsTest(tdae, com.amazonaws.services.dynamodbv2.streamsadapter.exceptions.UnableToReadMoreRecordsException.class, SkipRecordsBehavior.KCL_RETRY);
+        doGetRecordsTest(tdae, UnableToReadMoreRecordsException.class, SkipRecordsBehavior.KCL_RETRY);
     }
 
     @Test()
@@ -304,7 +304,7 @@ public class AmazonServiceExceptionTransformerTests extends AmazonServiceExcepti
     public void testGetShardIteratorResourceNotFoundExceptionKCLRetry() throws Exception {
         ResourceNotFoundException rnfe = new ResourceNotFoundException(TEST_MESSAGE);
         setFields(rnfe, RESOURCE_NOT_FOUND, ErrorType.Client, REQUEST_ID, SERVICE_NAME, STATUS_CODE_400);
-        doGetShardIteratorTest(rnfe, com.amazonaws.services.dynamodbv2.streamsadapter.exceptions.UnableToReadMoreRecordsException.class, SkipRecordsBehavior.KCL_RETRY, 1);
+        doGetShardIteratorTest(rnfe, UnableToReadMoreRecordsException.class, SkipRecordsBehavior.KCL_RETRY, 1);
     }
 
     @Test()
@@ -325,7 +325,7 @@ public class AmazonServiceExceptionTransformerTests extends AmazonServiceExcepti
     public void testGetShardIteratorTrimmedDataAccessExceptionKCLRetry() throws Exception {
         TrimmedDataAccessException tdae = new TrimmedDataAccessException(TEST_MESSAGE);
         setFields(tdae, TRIMMED_DATA_ACCESS_EXCEPTION, ErrorType.Client, REQUEST_ID, SERVICE_NAME, STATUS_CODE_400);
-        doGetShardIteratorTest(tdae, com.amazonaws.services.dynamodbv2.streamsadapter.exceptions.UnableToReadMoreRecordsException.class, SkipRecordsBehavior.KCL_RETRY, 1);
+        doGetShardIteratorTest(tdae, UnableToReadMoreRecordsException.class, SkipRecordsBehavior.KCL_RETRY, 1);
     }
 
     @Test()

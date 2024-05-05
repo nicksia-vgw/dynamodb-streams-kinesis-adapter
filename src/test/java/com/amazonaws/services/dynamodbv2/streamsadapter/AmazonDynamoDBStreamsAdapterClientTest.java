@@ -66,7 +66,6 @@ import com.amazonaws.services.dynamodbv2.model.StreamDescription;
 import com.amazonaws.services.dynamodbv2.model.StreamRecord;
 import com.amazonaws.services.dynamodbv2.model.StreamStatus;
 import com.amazonaws.services.dynamodbv2.model.StreamViewType;
-import com.amazonaws.services.dynamodbv2.streamsadapter.AmazonDynamoDBStreamsAdapterClient.SkipRecordsBehavior;
 import com.amazonaws.services.kinesis.model.DeleteStreamRequest;
 import com.amazonaws.services.kinesis.model.DescribeStreamRequest;
 import com.amazonaws.services.kinesis.model.GetRecordsRequest;

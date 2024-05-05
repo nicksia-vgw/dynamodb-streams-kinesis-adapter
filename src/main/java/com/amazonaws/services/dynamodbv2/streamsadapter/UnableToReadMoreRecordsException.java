@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-package com.amazonaws.services.dynamodbv2.streamsadapter.exceptions;
+package com.amazonaws.services.dynamodbv2.streamsadapter;
 
 /**
  * This exception is thrown when records have been trimmed and the user has specified to not continue processing.

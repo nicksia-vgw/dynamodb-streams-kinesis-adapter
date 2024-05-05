@@ -19,7 +19,6 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
-import com.amazonaws.services.dynamodbv2.streamsadapter.DynamoDBStreamsDataFetcher;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -40,7 +39,6 @@ import com.amazonaws.services.dynamodbv2.model.Shard;
 import com.amazonaws.services.dynamodbv2.model.StreamDescription;
 import com.amazonaws.services.dynamodbv2.model.StreamRecord;
 import com.amazonaws.services.dynamodbv2.model.StreamStatus;
-import com.amazonaws.services.dynamodbv2.streamsadapter.AmazonDynamoDBStreamsAdapterClient;
 import com.amazonaws.services.dynamodbv2.streamsadapter.model.RecordAdapter;
 import com.amazonaws.services.kinesis.clientlibrary.exceptions.KinesisClientLibException;
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.ICheckpoint;

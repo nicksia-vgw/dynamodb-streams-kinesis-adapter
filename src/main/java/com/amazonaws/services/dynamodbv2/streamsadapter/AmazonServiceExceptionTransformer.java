@@ -3,15 +3,13 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-package com.amazonaws.services.dynamodbv2.streamsadapter.model;
+package com.amazonaws.services.dynamodbv2.streamsadapter;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.dynamodbv2.model.InternalServerErrorException;
-import com.amazonaws.services.dynamodbv2.streamsadapter.AmazonDynamoDBStreamsAdapterClient.SkipRecordsBehavior;
-import com.amazonaws.services.dynamodbv2.streamsadapter.exceptions.UnableToReadMoreRecordsException;
 
 /**
  * <p>
@@ -139,7 +137,7 @@ public class AmazonServiceExceptionTransformer {
      * <br>
      * (2) ThrottlingException <br>
      * Amazon DynamoDB Streams: {@link com.amazonaws.AmazonServiceException} with ErrorCode
-     * {@value com.amazonaws.services.dynamodbv2.streamsadapter.model.AmazonServiceExceptionTransformer#DYNAMODB_STREAMS_THROTTLING_EXCEPTION_ERROR_CODE}
+     * {@value AmazonServiceExceptionTransformer#DYNAMODB_STREAMS_THROTTLING_EXCEPTION_ERROR_CODE}
      * <br>
      * Amazon Kinesis: {@link com.amazonaws.services.kinesis.model.LimitExceededException} <br>
      * Notes: N/A<br>
@@ -190,7 +188,7 @@ public class AmazonServiceExceptionTransformer {
      * <br>
      * (5) ThrottlingException <br>
      * Amazon DynamoDB Streams: {@link com.amazonaws.AmazonServiceException} with ErrorCode
-     * {@value com.amazonaws.services.dynamodbv2.streamsadapter.model.AmazonServiceExceptionTransformer#DYNAMODB_STREAMS_THROTTLING_EXCEPTION_ERROR_CODE}
+     * {@value AmazonServiceExceptionTransformer#DYNAMODB_STREAMS_THROTTLING_EXCEPTION_ERROR_CODE}
      * <br>
      * Amazon Kinesis: {@link com.amazonaws.services.kinesis.model.ProvisionedThroughputExceededException} <br>
      * Notes: N/A<br>
@@ -252,7 +250,7 @@ public class AmazonServiceExceptionTransformer {
      * <br>
      * (3) ThrottlingException <br>
      * Amazon DynamoDB Streams: {@link com.amazonaws.AmazonServiceException} with ErrorCode
-     * {@value com.amazonaws.services.dynamodbv2.streamsadapter.model.AmazonServiceExceptionTransformer#DYNAMODB_STREAMS_THROTTLING_EXCEPTION_ERROR_CODE}
+     * {@value AmazonServiceExceptionTransformer#DYNAMODB_STREAMS_THROTTLING_EXCEPTION_ERROR_CODE}
      * <br>
      * Amazon Kinesis: {@link com.amazonaws.services.kinesis.model.ProvisionedThroughputExceededException} <br>
      * Notes: N/A<br>
@@ -311,7 +309,7 @@ public class AmazonServiceExceptionTransformer {
      * <br>
      * (3) ThrottlingException <br>
      * Amazon DynamoDB Streams: {@link com.amazonaws.AmazonServiceException} with ErrorCode
-     * {@value com.amazonaws.services.dynamodbv2.streamsadapter.model.AmazonServiceExceptionTransformer#DYNAMODB_STREAMS_THROTTLING_EXCEPTION_ERROR_CODE}
+     * {@value AmazonServiceExceptionTransformer#DYNAMODB_STREAMS_THROTTLING_EXCEPTION_ERROR_CODE}
      * <br>
      * Amazon Kinesis: {@link com.amazonaws.services.kinesis.model.LimitExceededException} <br>
      * Notes: N/A<br>
